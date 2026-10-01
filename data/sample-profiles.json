@@ -1,0 +1,90 @@
+[
+  {
+    "id": "profile-001",
+    "name": "Sarah Chen",
+    "headline": "Senior Software Engineer | AI & Cloud | Building Scalable Systems",
+    "about": "Senior software engineer with 8 years of experience building scalable cloud applications and AI-powered products. I enjoy sharing practical lessons from engineering, system design, and artificial intelligence.",
+    "location": "Bangalore, India",
+    "industry": "Technology",
+    "experience": [
+      {
+        "company": "TechNova",
+        "title": "Senior Software Engineer",
+        "duration": "2022 - Present",
+        "description": "Building AI-powered cloud applications and distributed systems."
+      },
+      {
+        "company": "CloudWorks",
+        "title": "Software Engineer",
+        "duration": "2018 - 2022",
+        "description": "Developed scalable backend services and cloud infrastructure."
+      }
+    ],
+    "recentPosts": [
+      {
+        "text": "Most AI demos look impressive. Production AI is a completely different challenge. Here are three lessons I learned while taking an AI system from prototype to production.",
+        "date": "2026-09-20"
+      },
+      {
+        "text": "After spending years building distributed systems, I've learned that scalability isn't just about adding more servers. It's about designing systems that fail gracefully.",
+        "date": "2026-09-15"
+      },
+      {
+        "text": "RAG is easy to demonstrate and surprisingly difficult to productionize. The biggest challenges usually aren't the LLM itself, but retrieval quality, evaluation, and observability.",
+        "date": "2026-09-10"
+      }
+    ]
+  },
+  {
+    "id": "profile-002",
+    "name": "Rahul Mehta",
+    "headline": "Product Manager | SaaS | Growth & Product Strategy",
+    "about": "Product leader focused on building SaaS products that solve real customer problems. I write about product strategy, experimentation, leadership, and lessons from building products.",
+    "location": "Mumbai, India",
+    "industry": "Software",
+    "experience": [
+      {
+        "company": "GrowthLabs",
+        "title": "Product Manager",
+        "duration": "2023 - Present",
+        "description": "Leading SaaS product strategy and growth initiatives."
+      }
+    ],
+    "recentPosts": [
+      {
+        "text": "A product roadmap is not a list of features. It's a set of decisions about what you will deliberately NOT build.",
+        "date": "2026-09-18"
+      },
+      {
+        "text": "One of the biggest product mistakes I've made was optimizing for what users asked for instead of understanding why they were asking for it.",
+        "date": "2026-09-12"
+      }
+    ]
+  },
+  {
+    "id": "profile-003",
+    "name": "Priya Sharma",
+    "headline": "HR Leader | Talent Strategy | Building High-Performing Teams",
+    "about": "HR professional passionate about people strategy, leadership development, hiring, and building healthy workplace cultures.",
+    "location": "Delhi, India",
+    "industry": "Human Resources",
+    "experience": [
+      {
+        "company": "PeopleFirst",
+        "title": "HR Manager",
+        "duration": "2021 - Present",
+        "description": "Leading talent acquisition, employee engagement, and people development."
+      }
+    ],
+    "recentPosts": [
+      {
+        "text": "Hiring the right person is only half the job. Creating an environment where they can do their best work is the other half.",
+        "date": "2026-09-21"
+      },
+      {
+        "text": "Great managers don't just give feedback during performance reviews. They make feedback part of everyday work.",
+        "date": "2026-09-14"
+      }
+    ]
+  }
+]
