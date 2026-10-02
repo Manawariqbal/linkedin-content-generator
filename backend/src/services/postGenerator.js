@@ -11,21 +11,52 @@ import {
 } from "./groundingValidator.js";
 
 
+let llmGenerator = generateWithLLM;
+
+
+export function setLLMGenerator(generator) {
+  llmGenerator = generator;
+}
+
+
 const GeneratedPostSchema = z.object({
-  contentType: z.string(),
-  topic: z.string(),
-  hook: z.string(),
-  body: z.string(),
-  callToAction: z.string(),
-  hashtags: z.array(z.string())
+  contentType: z.string().min(1),
+  topic: z.string().min(1),
+  hook: z.string().min(1),
+  body: z.string().min(1),
+  callToAction: z.string().min(1),
+  hashtags: z.array(z.string()).min(1)
 });
 
 
 const GeneratedPostsSchema = z.object({
   posts: z.array(
     GeneratedPostSchema
-  ).min(3).max(5)
+  ).length(5)
 });
+
+
+function parseLLMResponse(response) {
+  if (!response || typeof response !== "string") {
+    throw new Error(
+      "LLM returned an empty response"
+    );
+  }
+
+  try {
+    return JSON.parse(response);
+  } catch (error) {
+    console.error(
+      "Failed to parse LLM response as JSON:"
+    );
+
+    console.error(response);
+
+    throw new Error(
+      "LLM returned invalid JSON for LinkedIn posts"
+    );
+  }
+}
 
 
 async function generateAndValidatePosts(
@@ -43,23 +74,10 @@ async function generateAndValidatePosts(
     );
 
   const response =
-    await generateWithLLM(prompt);
+    await llmGenerator(prompt);
 
-  let parsedResponse;
-
-  try {
-    parsedResponse =
-      JSON.parse(response);
-  } catch {
-    console.error(
-      "Invalid post generation JSON:",
-      response
-    );
-
-    throw new Error(
-      "LLM returned invalid JSON for LinkedIn posts"
-    );
-  }
+  const parsedResponse =
+    parseLLMResponse(response);
 
   const validationResult =
     GeneratedPostsSchema.safeParse(
@@ -68,20 +86,15 @@ async function generateAndValidatePosts(
 
   if (!validationResult.success) {
     console.error(
-      "Generated posts validation failed:",
+      "Generated posts validation failed:"
+    );
+
+    console.error(
       validationResult.error.issues
     );
 
     throw new Error(
       "Generated LinkedIn posts have an invalid structure"
-    );
-  }
-
-  if (
-    validationResult.data.posts.length !== 5
-  ) {
-    throw new Error(
-      "Exactly 5 LinkedIn posts are required"
     );
   }
 
@@ -130,7 +143,7 @@ export async function generatePosts(
       result.groundingResult.valid
     ) {
       console.log(
-        "✅ Post grounding validation passed"
+        "Post grounding validation passed"
       );
 
       return {
@@ -139,7 +152,10 @@ export async function generatePosts(
     }
 
     console.error(
-      "❌ Post grounding validation failed:",
+      "Post grounding validation failed:"
+    );
+
+    console.error(
       JSON.stringify(
         result.groundingResult,
         null,

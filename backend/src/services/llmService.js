@@ -18,7 +18,7 @@ async function generateWithGroq(prompt) {
 
   const model =
     process.env.GROQ_MODEL ||
-    "llama-3.3-70b-versatile";
+    "openai/gpt-oss-120b";
 
   const response = await groq.chat.completions.create({
     model,
@@ -28,10 +28,19 @@ async function generateWithGroq(prompt) {
         content: prompt
       }
     ],
-    temperature: 0.7
+    temperature: 0.7,
+    response_format: {
+      type: "json_object"
+    }
   });
 
-  return response.choices[0].message.content;
+  const content = response.choices?.[0]?.message?.content;
+
+  if (!content) {
+    throw new Error("Groq returned an empty response");
+  }
+
+  return content;
 }
 
 export async function generateWithLLM(prompt) {
@@ -42,11 +51,16 @@ export async function generateWithLLM(prompt) {
   }
 
   try {
-    console.log("Using Groq for LLM generation");
+    console.log(
+      `Using Groq model: ${process.env.GROQ_MODEL || "llama-3.3-70b-versatile"}`
+    );
 
     return await generateWithGroq(prompt);
   } catch (error) {
-    console.error("Groq generation failed:", error.message);
+    console.error(
+      "Groq generation failed:",
+      error.message
+    );
 
     throw new Error(
       `Groq generation failed: ${error.message}`

@@ -23,7 +23,8 @@ const FIRST_PERSON_PATTERNS = [
   /\bwe developed\b/gi,
   /\bwe launched\b/gi,
   /\bwe deployed\b/gi,
-  /\bwe implemented\b/gi
+  /\bwe implemented\b/gi,
+  /\bi moved\b/gi
 ];
 
 const INCIDENT_PATTERNS = [
@@ -77,7 +78,8 @@ function getEvidenceText(evidence) {
 }
 
 function getEvidenceTerms(evidence) {
-  const rawText = getEvidenceText(evidence);
+  const rawText =
+    getEvidenceText(evidence);
 
   return rawText
     .split(/[^a-z0-9+#.-]+/)
@@ -126,54 +128,58 @@ function hasMeaningfulEvidence(
   const normalizedSentence =
     normalizeText(sentence);
 
-  const evidenceText =
-    getEvidenceText(evidence);
-
   /*
-   * Strong evidence:
-   * Check whether the sentence contains
-   * important profile-specific anchors.
+   * Build meaningful profile anchors.
+   *
+   * Short anchors such as:
+   * "AI"
+   * "TechNova"
+   * "Software Engineer"
+   *
+   * are not enough by themselves to prove
+   * a specific personal experience.
    */
-
   const anchorTerms = [
-    ...evidence.identity
-      ? Object.values(evidence.identity)
-      : [],
+    ...(
+      evidence.identity
+        ? Object.values(evidence.identity)
+        : []
+    ),
 
-    ...evidence.experience
-      ? [
-          ...evidence.experience.companies,
-          ...evidence.experience.jobTitles,
-          ...evidence.experience.descriptions
-        ]
-      : [],
+    ...(
+      evidence.experience
+        ? [
+            ...(evidence.experience.companies || []),
+            ...(evidence.experience.jobTitles || []),
+            ...(evidence.experience.descriptions || [])
+          ]
+        : []
+    ),
 
-    ...evidence.education
-      ? [
-          ...evidence.education.institutions,
-          ...evidence.education.degrees,
-          ...evidence.education.fieldsOfStudy
-        ]
-      : [],
-
-    ...evidence.content
-      ? [
-          ...evidence.content.postTitles,
-          ...evidence.content.postTexts
-        ]
-      : []
+    ...(
+      evidence.education
+        ? [
+            ...(evidence.education.institutions || []),
+            ...(evidence.education.degrees || []),
+            ...(evidence.education.fieldsOfStudy || [])
+          ]
+        : []
+    )
   ]
     .map(normalizeText)
     .filter(
-      (value) => value.length >= 4
+      (value) => value.length >= 15
     );
 
   /*
-   * Exact phrase from the profile.
+   * Strong evidence:
+   *
+   * The sentence contains a sufficiently
+   * specific phrase directly documented
+   * in the profile.
    */
   for (const anchor of anchorTerms) {
     if (
-      anchor.length >= 8 &&
       normalizedSentence.includes(anchor)
     ) {
       return true;
@@ -181,50 +187,59 @@ function hasMeaningfulEvidence(
   }
 
   /*
-   * Token overlap.
+   * Recent posts can support a personal claim.
    *
-   * Example:
-   *
-   * Profile:
-   * "building AI-powered cloud applications"
-   *
-   * Post:
-   * "I built an AI-powered cloud application"
-   *
-   * Enough meaningful tokens overlap.
+   * However, generic overlap is not enough.
+   * We require at least four meaningful
+   * matching words from an actual profile post.
    */
+  const profilePosts =
+    evidence.content?.postTexts || [];
+
   const sentenceWords =
     new Set(
       normalizedSentence
         .split(/\W+/)
         .filter(
-          (word) =>
-            word.length >= 4
+          (word) => word.length >= 5
         )
     );
 
-  const evidenceTerms =
-    getEvidenceTerms(evidence);
+  for (const postText of profilePosts) {
+    const postWords =
+      new Set(
+        normalizeText(postText)
+          .split(/\W+/)
+          .filter(
+            (word) => word.length >= 5
+          )
+      );
 
-  let overlap = 0;
+    let overlap = 0;
 
-  for (const word of sentenceWords) {
-    if (
-      evidenceTerms.includes(word)
-    ) {
-      overlap++;
+    for (const word of sentenceWords) {
+      if (postWords.has(word)) {
+        overlap++;
+      }
+    }
+
+    if (overlap >= 4) {
+      return true;
     }
   }
 
-  return overlap >= 2;
+  return false;
 }
 
 function findUnsupportedFirstPersonClaims(
   post,
   evidence
 ) {
-  const postText = getPostText(post);
-  const sentences = getSentences(post);
+  const postText =
+    getPostText(post);
+
+  const sentences =
+    getSentences(post);
 
   const issues = [];
 
@@ -250,8 +265,9 @@ function findUnsupportedFirstPersonClaims(
       }
 
       /*
-       * If the sentence contains meaningful
-       * profile evidence, allow it.
+       * A first-person claim is allowed only
+       * when the same sentence contains strong
+       * profile evidence.
        */
       if (
         hasMeaningfulEvidence(
@@ -263,7 +279,7 @@ function findUnsupportedFirstPersonClaims(
       }
 
       issues.push(
-        `Unsupported personal claim: "${match}"`
+        `Unsupported personal claim: "${containingSentence}"`
       );
     }
   }
@@ -275,8 +291,11 @@ function findUnsupportedIncidents(
   post,
   evidence
 ) {
-  const postText = getPostText(post);
-  const sentences = getSentences(post);
+  const postText =
+    getPostText(post);
+
+  const sentences =
+    getSentences(post);
 
   const issues = [];
 
@@ -321,7 +340,9 @@ function findUnsupportedTeamClaims(
   post,
   evidence
 ) {
-  const postText = getPostText(post);
+  const postText =
+    getPostText(post);
+
   const evidenceText =
     getEvidenceText(evidence);
 
@@ -357,7 +378,9 @@ function findSuspiciousNumbers(
   post,
   evidence
 ) {
-  const postText = getPostText(post);
+  const postText =
+    getPostText(post);
+
   const evidenceText =
     getEvidenceText(evidence);
 

@@ -13,113 +13,458 @@ function getEvidenceText(evidence) {
   );
 }
 
-function getEvidenceTerms(evidence) {
-  return getEvidenceText(evidence)
-    .split(/[^a-z0-9+#.-]+/)
+function getExplicitProfileEvidence(evidence) {
+  const anchors = [
+    ...(evidence?.identity
+      ? Object.values(evidence.identity)
+      : []),
+
+    ...(evidence?.experience
+      ? [
+          ...(evidence.experience.companies || []),
+          ...(evidence.experience.jobTitles || []),
+          ...(evidence.experience.descriptions || [])
+        ]
+      : []),
+
+    ...(evidence?.education
+      ? [
+          ...(evidence.education.institutions || []),
+          ...(evidence.education.degrees || []),
+          ...(evidence.education.fieldsOfStudy || [])
+        ]
+      : [])
+  ];
+
+  return anchors
+    .map(normalizeText)
     .filter(
-      (word) =>
-        word.length >= 4 &&
-        ![
-          "that",
-          "this",
-          "with",
-          "from",
-          "have",
-          "been",
-          "will",
-          "your",
-          "their",
-          "they",
-          "about",
-          "into",
-          "while",
-          "also",
-          "were",
-          "what",
-          "when"
-        ].includes(word)
+      (value) => value.length >= 12
     );
 }
 
-function hasEvidence(text, evidence) {
+function containsSpecificProfileEvidence(
+  text,
+  evidence
+) {
   const normalizedText =
     normalizeText(text);
+
+  const anchors =
+    getExplicitProfileEvidence(
+      evidence
+    );
+
+  /*
+   * Broad technical terms should not be
+   * treated as evidence of a personal story.
+   */
+  const genericTerms = new Set([
+    "ai",
+    "cloud",
+    "software",
+    "engineering",
+    "engineer",
+    "production",
+    "systems",
+    "system",
+    "technology",
+    "development",
+    "application",
+    "applications",
+    "distributed",
+    "scalable",
+    "scalability",
+    "data",
+    "machine learning",
+    "backend",
+    "frontend"
+  ]);
+
+  const meaningfulAnchors =
+    anchors.filter(
+      (anchor) =>
+        !genericTerms.has(anchor)
+    );
+
+  return meaningfulAnchors.some(
+    (anchor) =>
+      normalizedText.includes(anchor)
+  );
+}
+
+function containsRecentPostEvidence(
+  text,
+  evidence
+) {
+  const normalizedText =
+    normalizeText(text);
+
+  const postTexts =
+    evidence?.content?.postTexts || [];
+
+  return postTexts.some((postText) => {
+    const normalizedPost =
+      normalizeText(postText);
+
+    if (!normalizedPost) {
+      return false;
+    }
+
+    const postWords =
+      new Set(
+        normalizedPost
+          .split(/\W+/)
+          .filter(
+            (word) =>
+              word.length >= 5
+          )
+      );
+
+    const textWords =
+      new Set(
+        normalizedText
+          .split(/\W+/)
+          .filter(
+            (word) =>
+              word.length >= 5
+          )
+      );
+
+    let overlap = 0;
+
+    for (const word of textWords) {
+      if (postWords.has(word)) {
+        overlap++;
+      }
+    }
+
+    return overlap >= 5;
+  });
+}
+
+function hasSpecificExperienceEvidence(
+  text,
+  evidence
+) {
+  return (
+    containsSpecificProfileEvidence(
+      text,
+      evidence
+    ) ||
+    containsRecentPostEvidence(
+      text,
+      evidence
+    )
+  );
+}
+
+function hasExplicitPersonalStoryEvidence(
+  evidence
+) {
+  const experienceDescriptions =
+    evidence?.experience?.descriptions || [];
+
+  const postTexts =
+    evidence?.content?.postTexts || [];
+
+  const explicitExperiencePatterns = [
+    /\bi built\b/i,
+    /\bi created\b/i,
+    /\bi developed\b/i,
+    /\bi implemented\b/i,
+    /\bi deployed\b/i,
+    /\bi launched\b/i,
+    /\bi faced\b/i,
+    /\bi encountered\b/i,
+    /\bi experienced\b/i,
+    /\bi learned\b/i,
+    /\bi discovered\b/i,
+    /\bi solved\b/i,
+    /\bwe built\b/i,
+    /\bwe created\b/i,
+    /\bwe developed\b/i,
+    /\bwe implemented\b/i,
+    /\bwe deployed\b/i,
+    /\bwe faced\b/i,
+    /\bwe encountered\b/i,
+    /\bwe learned\b/i
+  ];
+
+  const documentedExperienceText =
+    [
+      ...experienceDescriptions,
+      ...postTexts
+    ].join(" ");
+
+  return explicitExperiencePatterns.some(
+    (pattern) =>
+      pattern.test(
+        documentedExperienceText
+      )
+  );
+}
+
+function getIdeaSentences(idea) {
+  return [
+    idea.topic,
+    idea.objective,
+    idea.suggestedHook,
+    ...(idea.keyPoints || [])
+  ]
+    .map(normalizeText)
+    .filter(Boolean);
+}
+
+function validatePersonalStory(
+  idea,
+  evidence,
+  issues
+) {
+  const sentences =
+    getIdeaSentences(idea);
+
+  const hasExplicitEvidence =
+    hasExplicitPersonalStoryEvidence(
+      evidence
+    );
+
+  /*
+   * If the profile does not contain an
+   * explicitly documented personal experience,
+   * reject personal-story language.
+   */
+  if (!hasExplicitEvidence) {
+    const storyPatterns = [
+      /\bmy journey\b/i,
+      /\bmy experience\b/i,
+      /\bmy lessons\b/i,
+      /\bmy lesson\b/i,
+      /\bthree lessons\b/i,
+      /\blessons i learned\b/i,
+      /\bi learned\b/i,
+      /\bi discovered\b/i,
+      /\bi realized\b/i,
+      /\bi faced\b/i,
+      /\bi encountered\b/i,
+      /\bi experienced\b/i,
+      /\bwhen i\b/i,
+      /\bwhen we\b/i,
+      /\bwe learned\b/i,
+      /\bwe faced\b/i,
+      /\bwe encountered\b/i,
+      /\bmoving .* to production\b/i,
+      /\bfrom .* to production\b/i
+    ];
+
+    const storyText = [
+      idea.topic,
+      idea.objective,
+      idea.suggestedHook,
+      ...(idea.keyPoints || [])
+    ].join(" ");
+
+    for (const pattern of storyPatterns) {
+      const match =
+        storyText.match(pattern);
+
+      if (match) {
+        issues.push(
+          `Personal story is not supported by an explicitly documented experience: "${match[0]}"`
+        );
+      }
+    }
+  }
+
+  /*
+   * These patterns indicate that the content
+   * is claiming something personally happened.
+   */
+  const personalExperiencePatterns = [
+    /\bmy journey\b/i,
+    /\bmy experience\b/i,
+    /\bmy lesson\b/i,
+    /\bmy lessons\b/i,
+    /\bi learned\b/i,
+    /\bi discovered\b/i,
+    /\bi experienced\b/i,
+    /\bi faced\b/i,
+    /\bi encountered\b/i,
+    /\bi realized\b/i,
+    /\bi struggled\b/i,
+    /\bi solved\b/i,
+    /\bi built\b/i,
+    /\bi created\b/i,
+    /\bi developed\b/i,
+    /\bi implemented\b/i,
+    /\bi deployed\b/i,
+    /\bi launched\b/i,
+    /\bi moved\b/i,
+    /\bwhen i\b/i,
+    /\bwhen we\b/i,
+    /\bour team\b/i,
+    /\bwe learned\b/i,
+    /\bwe discovered\b/i,
+    /\bwe faced\b/i,
+    /\bwe encountered\b/i,
+    /\bwe built\b/i,
+    /\bwe deployed\b/i,
+    /\bwe implemented\b/i
+  ];
+
+  const personalClaims =
+    sentences.filter((sentence) =>
+      personalExperiencePatterns.some(
+        (pattern) =>
+          pattern.test(sentence)
+      )
+    );
+
+  /*
+   * If there is no explicit personal
+   * language, the idea may be a reflective
+   * professional observation.
+   */
+  if (
+    personalClaims.length === 0
+  ) {
+    return;
+  }
+
+  /*
+   * Every personal claim must have
+   * specific evidence.
+   *
+   * Check the individual sentence rather
+   * than the entire content idea.
+   */
+  for (const claim of personalClaims) {
+    const hasEvidence =
+      hasSpecificExperienceEvidence(
+        claim,
+        evidence
+      );
+
+    if (!hasEvidence) {
+      issues.push(
+        `Unsupported personal experience: "${claim}"`
+      );
+    }
+  }
+}
+
+function validatePersonalEventLanguage(
+  idea,
+  evidence,
+  issues
+) {
+  const sentences =
+    getIdeaSentences(idea);
+
+  const personalEventPatterns = [
+    /\bduring a recent\b/i,
+    /\bon a recent project\b/i,
+    /\bin a recent project\b/i,
+    /\bwhile working at\b/i,
+    /\bafter we\b/i,
+    /\bafter i\b/i,
+    /\bbefore we\b/i,
+    /\bbefore i\b/i,
+    /\bwhen our team\b/i,
+    /\bwhen the team\b/i,
+    /\bour production\b/i,
+    /\bour system\b/i,
+    /\bour application\b/i,
+    /\bmy project\b/i,
+    /\bmy system\b/i,
+    /\bmy application\b/i
+  ];
+
+  for (const sentence of sentences) {
+    let matchedPattern = null;
+
+    for (
+      const pattern of personalEventPatterns
+    ) {
+      if (pattern.test(sentence)) {
+        matchedPattern = pattern;
+        break;
+      }
+    }
+
+    if (!matchedPattern) {
+      continue;
+    }
+
+    if (
+      !hasSpecificExperienceEvidence(
+        sentence,
+        evidence
+      )
+    ) {
+      issues.push(
+        `Potentially unsupported personal event: "${sentence}"`
+      );
+    }
+  }
+}
+
+function validateSpecificClaims(
+  idea,
+  evidence,
+  issues
+) {
+  const text = [
+    idea.topic,
+    idea.objective,
+    idea.suggestedHook,
+    ...(idea.keyPoints || [])
+  ].join(" ");
+
+  const unsupportedPatterns = [
+    /\bmillions of users\b/i,
+    /\bthousands of users\b/i,
+    /\bsingle gpu\b/i,
+    /\bproduction incident\b/i,
+    /\bproduction outage\b/i,
+    /\bdata pipeline failure\b/i,
+    /\bteam of \d+\b/i,
+    /\bvector[- ]store latency\b/i,
+    /\bcache layer\b/i,
+    /\bmessage queue\b/i,
+    /\bcontainer orchestration\b/i,
+    /\bbleu score\b/i,
+    /\bretrieval relevance\b/i,
+    /\bidempotent ingestion\b/i,
+    /\bworkflow engine\b/i
+  ];
 
   const evidenceText =
     getEvidenceText(evidence);
 
-  /*
-   * Strong evidence:
-   * exact phrase appears in profile.
-   */
-  const anchors = [
-    ...evidence.identity
-      ? Object.values(evidence.identity)
-      : [],
+  for (
+    const pattern of unsupportedPatterns
+  ) {
+    const match =
+      text.match(pattern);
 
-    ...evidence.experience
-      ? [
-          ...evidence.experience.companies,
-          ...evidence.experience.jobTitles,
-          ...evidence.experience.descriptions
-        ]
-      : [],
+    if (!match) {
+      continue;
+    }
 
-    ...evidence.education
-      ? [
-          ...evidence.education.institutions,
-          ...evidence.education.degrees,
-          ...evidence.education.fieldsOfStudy
-        ]
-      : [],
+    const phrase =
+      normalizeText(match[0]);
 
-    ...evidence.content
-      ? [
-          ...evidence.content.postTitles,
-          ...evidence.content.postTexts
-        ]
-      : []
-  ]
-    .map(normalizeText)
-    .filter(
-      (value) => value.length >= 8
-    );
-
-  for (const anchor of anchors) {
     if (
-      normalizedText.includes(anchor)
+      !evidenceText.includes(
+        phrase
+      )
     ) {
-      return true;
+      issues.push(
+        `Potentially unsupported specific claim: "${match[0]}"`
+      );
     }
   }
-
-  /*
-   * Check meaningful token overlap.
-   */
-  const textWords =
-    new Set(
-      normalizedText
-        .split(/\W+/)
-        .filter(
-          (word) =>
-            word.length >= 4
-        )
-    );
-
-  const evidenceTerms =
-    getEvidenceTerms(evidence);
-
-  let overlap = 0;
-
-  for (const word of textWords) {
-    if (
-      evidenceTerms.includes(word)
-    ) {
-      overlap++;
-    }
-  }
-
-  return overlap >= 2;
 }
 
 function validateContentIdea(
@@ -129,72 +474,36 @@ function validateContentIdea(
 ) {
   const issues = [];
 
-  const text = [
-    idea.topic,
-    idea.objective,
-    idea.suggestedHook,
-    ...(idea.keyPoints || [])
-  ].join(" ");
+  const normalizedType =
+    normalizeText(idea.type);
 
-  /*
-   * Personal-story content needs
-   * stronger grounding.
-   */
   const isPersonalStory =
-    normalizeText(
-      idea.type
-    ).includes("personal");
+    normalizedType.includes(
+      "personal"
+    ) ||
+    normalizedType.includes(
+      "story"
+    );
 
-  if (
-    isPersonalStory &&
-    !hasEvidence(text, evidence)
-  ) {
-    issues.push(
-      "Personal story is not sufficiently supported by profile evidence"
+  if (isPersonalStory) {
+    validatePersonalStory(
+      idea,
+      evidence,
+      issues
     );
   }
 
-  /*
-   * Detect strongly specific invented claims.
-   */
-  const unsupportedPatterns = [
-    /\bmillions of users\b/i,
-    /\bthousands of users\b/i,
-    /\bsingle gpu\b/i,
-    /\bproduction incident\b/i,
-    /\bproduction outage\b/i,
-    /\bdata pipeline failure\b/i,
-    /\bteam of\b/i,
-    /\bai researchers?\b/i,
-    /\bvector[- ]store latency\b/i,
-    /\bcache layer\b/i,
-    /\bmessage queue\b/i,
-    /\bcontainer orchestration\b/i
-  ];
+  validatePersonalEventLanguage(
+    idea,
+    evidence,
+    issues
+  );
 
-  for (
-    const pattern of unsupportedPatterns
-  ) {
-    const match =
-      text.match(pattern);
-
-    if (match) {
-      const phrase =
-        match[0];
-
-      if (
-        !getEvidenceText(
-          evidence
-        ).includes(
-          normalizeText(phrase)
-        )
-      ) {
-        issues.push(
-          `Potentially unsupported specific claim: "${phrase}"`
-        );
-      }
-    }
-  }
+  validateSpecificClaims(
+    idea,
+    evidence,
+    issues
+  );
 
   return {
     ideaIndex: index + 1,
@@ -208,7 +517,9 @@ export function validateStrategyGrounding(
   profile
 ) {
   const evidence =
-    buildProfileEvidence(profile);
+    buildProfileEvidence(
+      profile
+    );
 
   const ideas =
     Array.isArray(
@@ -229,7 +540,8 @@ export function validateStrategyGrounding(
 
   return {
     valid: results.every(
-      (result) => result.valid
+      (result) =>
+        result.valid
     ),
     results
   };
