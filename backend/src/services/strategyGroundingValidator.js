@@ -56,8 +56,8 @@ function containsSpecificProfileEvidence(
     );
 
   /*
-   * Broad technical terms should not be
-   * treated as evidence of a personal story.
+   * Generic technical concepts are not
+   * considered personal evidence.
    */
   const genericTerms = new Set([
     "ai",
@@ -334,9 +334,6 @@ function validatePersonalStory(
   /*
    * Every personal claim must have
    * specific evidence.
-   *
-   * Check the individual sentence rather
-   * than the entire content idea.
    */
   for (const claim of personalClaims) {
     const hasEvidence =
@@ -409,6 +406,30 @@ function validatePersonalEventLanguage(
   }
 }
 
+/*
+ * Detect claims that should require evidence.
+ *
+ * Important:
+ * Generic technical concepts such as:
+ *
+ * - retrieval relevance
+ * - cache layer
+ * - message queue
+ * - workflow engine
+ * - idempotent ingestion
+ * - vector store
+ * - container orchestration
+ *
+ * are NOT considered unsupported simply because
+ * they are not present in the LinkedIn profile.
+ *
+ * The validator focuses on:
+ *
+ * 1. Quantitative claims
+ * 2. Personal/company-specific claims
+ * 3. Specific incidents
+ * 4. Explicit production claims
+ */
 function validateSpecificClaims(
   idea,
   evidence,
@@ -421,32 +442,42 @@ function validateSpecificClaims(
     ...(idea.keyPoints || [])
   ].join(" ");
 
-  const unsupportedPatterns = [
-    /\bmillions of users\b/i,
-    /\bthousands of users\b/i,
-    /\bsingle gpu\b/i,
-    /\bproduction incident\b/i,
-    /\bproduction outage\b/i,
-    /\bdata pipeline failure\b/i,
-    /\bteam of \d+\b/i,
-    /\bvector[- ]store latency\b/i,
-    /\bcache layer\b/i,
-    /\bmessage queue\b/i,
-    /\bcontainer orchestration\b/i,
-    /\bbleu score\b/i,
-    /\bretrieval relevance\b/i,
-    /\bidempotent ingestion\b/i,
-    /\bworkflow engine\b/i
-  ];
+  const normalizedText =
+    normalizeText(text);
 
   const evidenceText =
     getEvidenceText(evidence);
 
+  /*
+   * Explicit quantitative claims.
+   */
+  const quantitativePatterns = [
+    /\b\d+(?:\.\d+)?%\b/i,
+
+    /\b\d+(?:\.\d+)?\s*(?:million|millions)\b/i,
+
+    /\b\d+(?:\.\d+)?\s*(?:thousand|thousands)\b/i,
+
+    /\b\d+(?:\.\d+)?\s*(?:billion|billions)\b/i,
+
+    /\b\d+(?:\.\d+)?\s*(?:users|requests|customers|records|events|documents|transactions)\b/i,
+
+    /\bmillions of users\b/i,
+
+    /\bthousands of users\b/i,
+
+    /\bthousands of requests\b/i,
+
+    /\bmillions of requests\b/i,
+
+    /\bteam of \d+\b/i
+  ];
+
   for (
-    const pattern of unsupportedPatterns
+    const pattern of quantitativePatterns
   ) {
     const match =
-      text.match(pattern);
+      normalizedText.match(pattern);
 
     if (!match) {
       continue;
@@ -456,12 +487,121 @@ function validateSpecificClaims(
       normalizeText(match[0]);
 
     if (
-      !evidenceText.includes(
-        phrase
+      !evidenceText.includes(phrase)
+    ) {
+      issues.push(
+        `Potentially unsupported quantitative claim: "${match[0]}"`
+      );
+    }
+  }
+
+  /*
+   * Specific production incidents should not
+   * be invented from a generic technical topic.
+   */
+  const incidentPatterns = [
+    /\bproduction incident\b/i,
+    /\bproduction outage\b/i,
+    /\bproduction failure\b/i,
+    /\bproduction issue\b/i,
+    /\bdata pipeline failure\b/i,
+    /\bservice outage\b/i,
+    /\bsystem outage\b/i,
+    /\bmajor incident\b/i
+  ];
+
+  for (
+    const pattern of incidentPatterns
+  ) {
+    const match =
+      normalizedText.match(pattern);
+
+    if (!match) {
+      continue;
+    }
+
+    const phrase =
+      normalizeText(match[0]);
+
+    /*
+     * Allow the concept when the profile
+     * explicitly documents the same incident.
+     */
+    if (
+      !evidenceText.includes(phrase)
+    ) {
+      issues.push(
+        `Potentially unsupported specific incident: "${match[0]}"`
+      );
+    }
+  }
+
+  /*
+   * Personal/company-specific claims.
+   *
+   * These are different from generic technical
+   * statements because they imply something
+   * actually happened to the person or their team.
+   */
+  const personalSpecificPatterns = [
+    /\bi improved\b/i,
+    /\bi reduced\b/i,
+    /\bi increased\b/i,
+    /\bi optimized\b/i,
+    /\bi migrated\b/i,
+    /\bi scaled\b/i,
+    /\bi automated\b/i,
+    /\bi delivered\b/i,
+    /\bi achieved\b/i,
+    /\bi introduced\b/i,
+    /\bi led\b/i,
+    /\bi managed\b/i,
+
+    /\bwe improved\b/i,
+    /\bwe reduced\b/i,
+    /\bwe increased\b/i,
+    /\bwe optimized\b/i,
+    /\bwe migrated\b/i,
+    /\bwe scaled\b/i,
+    /\bwe automated\b/i,
+    /\bwe delivered\b/i,
+
+    /\bat [a-z0-9][a-z0-9 .&-]{2,40},?\s+i\b/i,
+
+    /\bwhile working at\b/i,
+    /\bduring my time at\b/i,
+    /\bat my company\b/i
+  ];
+
+  for (
+    const pattern of personalSpecificPatterns
+  ) {
+    const match =
+      text.match(pattern);
+
+    if (!match) {
+      continue;
+    }
+
+    const containingSentence =
+      getIdeaSentences(idea).find(
+        (sentence) =>
+          sentence.includes(
+            normalizeText(match[0])
+          )
+      );
+
+    const claimText =
+      containingSentence || match[0];
+
+    if (
+      !hasSpecificExperienceEvidence(
+        claimText,
+        evidence
       )
     ) {
       issues.push(
-        `Potentially unsupported specific claim: "${match[0]}"`
+        `Potentially unsupported personal or company-specific claim: "${claimText}"`
       );
     }
   }

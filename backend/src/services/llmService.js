@@ -1,69 +1,41 @@
 import dotenv from "dotenv";
-import Groq from "groq-sdk";
+import { createLLMProvider } from "./llm/llmFactory.js";
 
 dotenv.config();
 
-const provider = process.env.LLM_PROVIDER || "groq";
+let provider;
 
-const groq = process.env.GROQ_API_KEY
-  ? new Groq({
-      apiKey: process.env.GROQ_API_KEY
-    })
-  : null;
+function getProvider() {
+  if (!provider) {
+    provider = createLLMProvider();
 
-async function generateWithGroq(prompt) {
-  if (!groq) {
-    throw new Error("GROQ_API_KEY is not configured");
+    console.log(
+      `Using LLM provider: ${provider.name}`
+    );
   }
 
-  const model =
-    process.env.GROQ_MODEL ||
-    "openai/gpt-oss-120b";
-
-  const response = await groq.chat.completions.create({
-    model,
-    messages: [
-      {
-        role: "user",
-        content: prompt
-      }
-    ],
-    temperature: 0.7,
-    response_format: {
-      type: "json_object"
-    }
-  });
-
-  const content = response.choices?.[0]?.message?.content;
-
-  if (!content) {
-    throw new Error("Groq returned an empty response");
-  }
-
-  return content;
+  return provider;
 }
 
 export async function generateWithLLM(prompt) {
-  if (provider !== "groq") {
+  if (!prompt || typeof prompt !== "string") {
     throw new Error(
-      `Unsupported LLM provider: ${provider}. Production currently supports Groq only.`
+      "LLM prompt must be a non-empty string"
     );
   }
 
   try {
-    console.log(
-      `Using Groq model: ${process.env.GROQ_MODEL || "llama-3.3-70b-versatile"}`
-    );
+    const llmProvider = getProvider();
 
-    return await generateWithGroq(prompt);
+    return await llmProvider.generate(prompt);
   } catch (error) {
     console.error(
-      "Groq generation failed:",
+      "LLM generation failed:",
       error.message
     );
 
     throw new Error(
-      `Groq generation failed: ${error.message}`
+      `LLM generation failed: ${error.message}`
     );
   }
 }
