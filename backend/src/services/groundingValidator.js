@@ -18,13 +18,33 @@ const FIRST_PERSON_PATTERNS = [
   /\bi saw\b/gi,
   /\bi've seen\b/gi,
   /\bi have seen\b/gi,
+  /\bi moved\b/gi,
+  /\bi led\b/gi,
+  /\bi managed\b/gi,
+  /\bi improved\b/gi,
+  /\bi reduced\b/gi,
+  /\bi increased\b/gi,
+  /\bi delivered\b/gi,
+  /\bi achieved\b/gi,
+  /\bi drove\b/gi,
+  /\bi introduced\b/gi,
+  /\bi migrated\b/gi,
+  /\bi optimized\b/gi,
+  /\bi scaled\b/gi,
+  /\bi automated\b/gi,
+  /\bi mentored\b/gi,
+  /\bi advised\b/gi,
+  /\bi helped\b/gi,
   /\bwe built\b/gi,
   /\bwe created\b/gi,
   /\bwe developed\b/gi,
   /\bwe launched\b/gi,
   /\bwe deployed\b/gi,
   /\bwe implemented\b/gi,
-  /\bi moved\b/gi
+  /\bwe improved\b/gi,
+  /\bwe reduced\b/gi,
+  /\bwe increased\b/gi,
+  /\bwe delivered\b/gi
 ];
 
 const INCIDENT_PATTERNS = [
@@ -36,10 +56,13 @@ const INCIDENT_PATTERNS = [
   /\bi found\b/gi,
   /\bi saw\b/gi,
   /\bi've seen\b/gi,
+  /\bi have seen\b/gi,
   /\bwe encountered\b/gi,
   /\bwe ran into\b/gi,
   /\bwe faced\b/gi,
-  /\bwe experienced\b/gi
+  /\bwe experienced\b/gi,
+  /\bwe discovered\b/gi,
+  /\bwe found\b/gi
 ];
 
 const TEAM_PATTERNS = [
@@ -50,7 +73,14 @@ const TEAM_PATTERNS = [
   /\bour customers\b/gi,
   /\bour users\b/gi,
   /\bour production\b/gi,
-  /\bour deployment\b/gi
+  /\bour deployment\b/gi,
+  /\bmy team\b/gi,
+  /\bmy customers\b/gi,
+  /\bmy users\b/gi,
+  /\bmy system\b/gi,
+  /\bmy service\b/gi,
+  /\bmy application\b/gi,
+  /\bmy production\b/gi
 ];
 
 function normalizeText(text) {
@@ -77,37 +107,6 @@ function getEvidenceText(evidence) {
   );
 }
 
-function getEvidenceTerms(evidence) {
-  const rawText =
-    getEvidenceText(evidence);
-
-  return rawText
-    .split(/[^a-z0-9+#.-]+/)
-    .filter(
-      (word) =>
-        word.length >= 4 &&
-        ![
-          "that",
-          "this",
-          "with",
-          "from",
-          "have",
-          "been",
-          "will",
-          "your",
-          "their",
-          "they",
-          "about",
-          "into",
-          "while",
-          "also",
-          "were",
-          "what",
-          "when"
-        ].includes(word)
-    );
-}
-
 function getSentences(post) {
   return [
     post.topic,
@@ -128,56 +127,32 @@ function hasMeaningfulEvidence(
   const normalizedSentence =
     normalizeText(sentence);
 
-  /*
-   * Build meaningful profile anchors.
-   *
-   * Short anchors such as:
-   * "AI"
-   * "TechNova"
-   * "Software Engineer"
-   *
-   * are not enough by themselves to prove
-   * a specific personal experience.
-   */
   const anchorTerms = [
-    ...(
-      evidence.identity
-        ? Object.values(evidence.identity)
-        : []
-    ),
+    ...(evidence.identity
+      ? Object.values(evidence.identity)
+      : []),
 
-    ...(
-      evidence.experience
-        ? [
-            ...(evidence.experience.companies || []),
-            ...(evidence.experience.jobTitles || []),
-            ...(evidence.experience.descriptions || [])
-          ]
-        : []
-    ),
+    ...(evidence.experience
+      ? [
+          ...(evidence.experience.companies || []),
+          ...(evidence.experience.jobTitles || []),
+          ...(evidence.experience.descriptions || [])
+        ]
+      : []),
 
-    ...(
-      evidence.education
-        ? [
-            ...(evidence.education.institutions || []),
-            ...(evidence.education.degrees || []),
-            ...(evidence.education.fieldsOfStudy || [])
-          ]
-        : []
-    )
+    ...(evidence.education
+      ? [
+          ...(evidence.education.institutions || []),
+          ...(evidence.education.degrees || []),
+          ...(evidence.education.fieldsOfStudy || [])
+        ]
+      : [])
   ]
     .map(normalizeText)
     .filter(
       (value) => value.length >= 15
     );
 
-  /*
-   * Strong evidence:
-   *
-   * The sentence contains a sufficiently
-   * specific phrase directly documented
-   * in the profile.
-   */
   for (const anchor of anchorTerms) {
     if (
       normalizedSentence.includes(anchor)
@@ -186,13 +161,6 @@ function hasMeaningfulEvidence(
     }
   }
 
-  /*
-   * Recent posts can support a personal claim.
-   *
-   * However, generic overlap is not enough.
-   * We require at least four meaningful
-   * matching words from an actual profile post.
-   */
   const profilePosts =
     evidence.content?.postTexts || [];
 
@@ -264,11 +232,6 @@ function findUnsupportedFirstPersonClaims(
         continue;
       }
 
-      /*
-       * A first-person claim is allowed only
-       * when the same sentence contains strong
-       * profile evidence.
-       */
       if (
         hasMeaningfulEvidence(
           containingSentence,
@@ -284,7 +247,9 @@ function findUnsupportedFirstPersonClaims(
     }
   }
 
-  return issues;
+  return [
+    ...new Set(issues)
+  ];
 }
 
 function findUnsupportedIncidents(
@@ -333,7 +298,9 @@ function findUnsupportedIncidents(
     }
   }
 
-  return issues;
+  return [
+    ...new Set(issues)
+  ];
 }
 
 function findUnsupportedTeamClaims(
@@ -371,7 +338,44 @@ function findUnsupportedTeamClaims(
     }
   }
 
-  return issues;
+  return [
+    ...new Set(issues)
+  ];
+}
+
+function isYear(number) {
+  const numericValue =
+    parseInt(number, 10);
+
+  return (
+    !number.includes(".") &&
+    !number.includes("%") &&
+    numericValue >= 1900 &&
+    numericValue <= 2100
+  );
+}
+
+function sentenceContainsPersonalContext(
+  sentence
+) {
+  const normalizedSentence =
+    normalizeText(sentence);
+
+  const allPatterns = [
+    ...FIRST_PERSON_PATTERNS,
+    ...INCIDENT_PATTERNS,
+    ...TEAM_PATTERNS
+  ];
+
+  return allPatterns.some(
+    (pattern) => {
+      pattern.lastIndex = 0;
+
+      return pattern.test(
+        normalizedSentence
+      );
+    }
+  );
 }
 
 function findSuspiciousNumbers(
@@ -384,9 +388,19 @@ function findSuspiciousNumbers(
   const evidenceText =
     getEvidenceText(evidence);
 
+  const sentences =
+    getSentences(post);
+
+  /*
+   * Important:
+   * The previous regex could extract "85" instead
+   * of "85%" because \b after % does not behave
+   * as intended. This version captures percentages
+   * correctly.
+   */
   const numbers =
     postText.match(
-      /\b\d+(?:\.\d+)?%?\b/g
+      /\b\d+(?:\.\d+)?%?/g
     ) || [];
 
   const suspiciousNumbers = [];
@@ -396,8 +410,16 @@ function findSuspiciousNumbers(
       parseFloat(number);
 
     /*
-     * Small numbers are usually list
-     * numbering rather than factual claims.
+     * Calendar years are contextual information,
+     * not automatically personal claims.
+     */
+    if (isYear(number)) {
+      continue;
+    }
+
+    /*
+     * Small numbers are usually simple quantities
+     * or non-suspicious values.
      */
     if (
       numericValue <= 10 &&
@@ -406,16 +428,57 @@ function findSuspiciousNumbers(
       continue;
     }
 
+    /*
+     * Numbers already present in the profile
+     * evidence are considered grounded.
+     */
     if (
-      !evidenceText.includes(
+      evidenceText.includes(
         normalizeText(number)
+      )
+    ) {
+      continue;
+    }
+
+    const containingSentence =
+      sentences.find(
+        (sentence) =>
+          sentence.includes(
+            normalizeText(number)
+          )
+      );
+
+    if (!containingSentence) {
+      continue;
+    }
+
+    /*
+     * Percentages represent measurable metrics.
+     * Unsupported percentages should always be
+     * flagged, even if the sentence is written
+     * as a general industry statement.
+     */
+    const isPercentage =
+      number.includes("%");
+
+    /*
+     * Other unsupported numbers are flagged only
+     * when they appear in a personal, incident,
+     * team, or production claim.
+     */
+    if (
+      isPercentage ||
+      sentenceContainsPersonalContext(
+        containingSentence
       )
     ) {
       suspiciousNumbers.push(number);
     }
   }
 
-  return suspiciousNumbers;
+  return [
+    ...new Set(suspiciousNumbers)
+  ];
 }
 
 export function validatePostGrounding(
@@ -466,7 +529,9 @@ export function validatePostGrounding(
 
   return {
     valid: issues.length === 0,
-    issues
+    issues: [
+      ...new Set(issues)
+    ]
   };
 }
 
